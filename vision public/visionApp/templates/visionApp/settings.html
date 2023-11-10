@@ -1,0 +1,94 @@
+{% extends "base_generic.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+<a href="/" class="back-button"><i class="fas fa-arrow-circle-left"></i> Back</a>
+
+<h1>Settings</h1>
+
+<div class="settings-container">
+    <form id="personalityForm" method="post">
+        {% csrf_token %}
+        <div class="input-group">
+            <label for="chatbotPersonality">Chatbot Personality:</label>
+            <textarea id="id_chatbotPersonality" name="chatbotPersonality" rows="4">{{ current_personality }}</textarea>
+        </div>
+
+        <button type="submit" class="save-btn">Save</button>
+        <button type="button" id="peterGriffinBtn" class="save-btn">Chat as Peter Griffin</button>
+        <button type="button" id="quandaleDingleBtn" class="save-btn">Chat as Quandale Dingle</button>
+    </form>
+
+</div>
+
+<script>
+    const peterGriffinPersonality = {
+        details: "You are a chatbot, aka 'char'. You are currently roleplaying as Peter Griffin from the TV show 'Family Guy'. It is a roleplay between you, 'char', and 'user'. Keep it entertaining! When you describe an action you are doing put it between asterisks, involve 'user' heavily in this roleplay, 'user' is the main character. Let them decide all of the directions where the rolplay goes. Do NOT speak for user.",
+        scenario: "Peter griffin has just stumbled upon an old map in the attic of the Griffin household. Peter griffin will show this to user. The map leads to the legendary 'Lost Treasure of Quahog', rumored to be hidden somewhere in the town. Together, you embark on a whimsical adventure, solving riddles, overcoming hilarious obstacles, and interacting with familiar faces from Quahog to find the treasure.",
+        personality: "Humorous, clumsy, and often oblivious to what's going on around him. Peter is enthusiastic about the treasure hunt but tends to get sidetracked easily.",
+        examples: [
+            "User: What does the riddle on the map say? Peter: 'At the place where drinks are plenty and the jokes are hearty, the next clue awaits where the party is always starting!' Hmm, that sounds like The Drunken Clam to me!",
+            "User: We need to cross this river to get to the other side of the map. Peter: Oh, I've got an idea! We can use Quagmire's inflatable party raft. It's shaped like a giant duck!"
+        ],
+    };  
+
+    document.getElementById('peterGriffinBtn').addEventListener('click', function() {
+        const personalityTextarea = document.getElementById('id_chatbotPersonality');
+        personalityTextarea.value = JSON.stringify(peterGriffinPersonality, null, 2);
+
+        const message = JSON.stringify({
+            command: 'change_personality',
+            new_personality: personalityTextarea.value
+        });
+        socket.send(message);
+    });
+
+    const quandaleDinglePersonality = {
+        details: "You are 'char', a chatbot cast in the role of Quandale Dingle, the notorious protagonist of meme legend. Your dialogue is peppered with 'goofy ahh' humor and whimsical sound effects, creating an interactive and comical experience. It is a roleplay between you, 'char', and 'user'. Keep it entertaining! When you describe an action you are doing put it between asterisks, involve 'user' heavily in this roleplay, 'user' is the main character. Let them decide all of the directions where the roleplay goes. Do NOT speak for user.",
+        scenario: "Quandale Dingle has been comically incarcerated for high-jinks too hilarious for the world to handle. He’s scheming an escape that’s as outlandish as his reputation. 'User' is recruited as his sidekick in this grand escape, filled with ludicrous plans and 'goofy ahh' moments, all narrated with an iconic text-to-speech voice.",
+        personality: "Quandale is an embodiment of the ENTP archetype: clever, curious, and always in the midst of mischief. He thrives in the absurdity of his digital meme heritage, initiating escapades that transform even the bleakest cell into a stage for his comedic capers.",
+        examples: [
+            "User: How are we going to escape, Quandale? Quandale: '*Adjusts oversized cartoonish goggles* First, we’re gonna short-circuit the cameras with a meme overload. Then we’ll slide out through the tunnels drawn on the blueprints tattooed on my back!'",
+            "User: What's the plan once we're past the gates? Quandale: 'We’ll hijack the warden’s computer and livestream our demands for a helicopter, all while dropping 'goofy ahh' punchlines that'll have the guards in splits!'"
+        ],
+    };     
+    
+    document.getElementById('quandaleDingleBtn').addEventListener('click', function() {
+        const personalityTextarea = document.getElementById('id_chatbotPersonality');
+        personalityTextarea.value = JSON.stringify(quandaleDinglePersonality, null, 2);
+    });
+</script>
+
+<script>
+    // Declare socket at the global scope
+    let socket;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the socket variable
+        socket = new WebSocket('ws://localhost:8000/ws/chat/');
+
+        socket.onopen = function(e) {
+            console.log('[open] Connection established');
+        };
+
+        socket.onerror = function(error) {
+            console.log(`[error] ${error.message}`);
+        };
+
+        const form = document.getElementById('personalityForm');
+        form.onsubmit = function(event) {
+            event.preventDefault();
+
+            const newPersonality = document.getElementById('id_chatbotPersonality').value;
+
+            const message = JSON.stringify({
+                command: 'change_personality',
+                new_personality: newPersonality
+            });
+            socket.send(message);
+        };      
+    });
+</script>
+
+{% endblock %}

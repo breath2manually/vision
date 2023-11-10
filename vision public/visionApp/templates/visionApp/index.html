@@ -1,0 +1,14 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<div class="container">
+    <h1 class="header-title">picturize.ai</h1>
+    <div class="title-separator"></div>
+    <a href="{% url 'settings' %}" class="settings-button">
+        <i class="fa-solid fa-gear" style="color: #ffffff;"></i>
+    </a>
+    <a href="{% url 'chat' character='Peter-Griffin' %}" class="btn">Chat as Peter Griffin</a>
+    <a href="{% url 'chat' character='Quandale-Dingle' %}" class="btn">Chat as Quandale Dingle</a>
+
+</div>
+{% endblock %}

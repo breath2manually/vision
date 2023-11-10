@@ -1,0 +1,405 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block content %}
+<a href="/" class="back-button"><i class="fas fa-arrow-circle-left"></i> Back</a>
+
+<div id="chat-box">
+    {% if messages %}
+    {% for message in messages %}
+        <div class="message-container">
+            <div class="profile-pic-username">
+                <img src="{% static 'pfps/' %}{% if message.is_user %}user.jpg{% else %}bot.jpg{% endif %}" alt="pfp" class="profile-pic">
+                <span class="username">{% if message.is_user %}User{% else %}Char{% endif %}</span>
+            </div>
+            <p class="{% if message.is_user %}user-message{% else %}chatbot-message{% endif %}">{{ message.text }}</p>
+        </div>
+    {% endfor %}
+{% endif %}
+</div>
+
+<div class="content-container">
+    <form method="POST" id="chat-form">
+        {% csrf_token %}
+        <div class="textarea-button-wrapper">
+            <button type="submit" id="submitBtn">
+                <i class="fa-solid fa-arrow-up submit-icon" style="color: #ffffff;"></i>
+                <div id="lottie-animation" style="width: 40px; height: 40px; transform: scale(0.7);"></div>
+            </button>
+            {{ form.text }}
+        </div>        
+    </form>
+</div>
+
+<div class='popup' style='position: fixed; top: 10px; right: 10px;'>
+    <div id="lottie-icon-container" style="width: 50px; height: 50px; cursor: pointer; background color: white;"></div>
+
+    <div class='popup-dropdown profiledropdown' style='display: none; position: absolute; right: 0; background-color: #f9f9f9; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1;'>
+      <a href='#profile' style='color: black; padding: 12px 16px; text-decoration: none; display: block;'>Profile</a>
+      <a href='#settings' style='color: black; padding: 12px 16px; text-decoration: none; display: block;'>Profile settings</a>
+      <a href='#signout' style='color: black; padding: 12px 16px; text-decoration: none; display: block;'>Sign out</a>
+      <button id="deleteAllBtn" style='color: black; padding: 12px 16px; text-decoration: none; display: block;'>Delete All Messages</button>
+    </div>
+  </div>
+  
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.5/lottie.min.js'></script>
+
+<script>
+    let isAIResponding = false;
+
+    // Initialize WebSocket connection
+    const socket = new WebSocket('ws://127.0.0.1:8000/ws/chat/');
+    let lastChatbotMessageElement = null;
+    var animation;
+
+    var menuIconAnimation = lottie.loadAnimation({
+        container: document.getElementById('lottie-icon-container'),
+        renderer: 'svg',
+        loop: false,
+        autoplay: false,
+        path: "{% static 'animations/menu.json' %}",
+        initialSegment: [0,0]
+    });
+
+    socket.onopen = function() {
+        const characterName = getCharacterNameFromURL();
+        setInitialPersonality(characterName);
+    };
+
+    menuIconAnimation.setSpeed(1.5);
+
+    function getCharacterNameFromURL() {
+        const urlSegments = window.location.pathname.split('/');
+        const characterSegment = urlSegments[urlSegments.length - 1];
+        return characterSegment.replace('-', ' ');
+    }
+
+    function setInitialPersonality(characterName) {
+        if (characterName === 'Peter Griffin') {
+            const peterGriffinPersonality = {
+                details: "You are a chatbot, aka 'char'. You are currently roleplaying as Peter Griffin from the TV show 'Family Guy'. It is a roleplay between you, 'char', and 'user'. Keep it entertaining! When you describe an action you are doing put it between asterisks, involve 'user' heavily in this roleplay, 'user' is the main character. Let them decide all of the directions where the roleplay goes. Do NOT speak for user.",
+                scenario: "Peter griffin has just stumbled upon an old map in the attic of the Griffin household. Peter griffin will show this to user. The map leads to the legendary 'Lost Treasure of Quahog', rumored to be hidden somewhere in the town. Together, you embark on a whimsical adventure, solving riddles, overcoming hilarious obstacles, and interacting with familiar faces from Quahog to find the treasure.",
+                personality: "Humorous, clumsy, and often oblivious to what's going on around him. Peter is enthusiastic about the treasure hunt but tends to get sidetracked easily.",
+                examples: [
+                    "User: What does the riddle on the map say? Peter: 'At the place where drinks are plenty and the jokes are hearty, the next clue awaits where the party is always starting!' Hmm, that sounds like The Drunken Clam to me!",
+                    "User: We need to cross this river to get to the other side of the map. Peter: Oh, I've got an idea! We can use Quagmire's inflatable party raft. It's shaped like a giant duck!"
+                ],
+            };    
+            const message = JSON.stringify({
+                command: 'change_personality',
+                new_personality: JSON.stringify(peterGriffinPersonality)
+            });
+            socket.send(message);
+        } else if (characterName === 'Quandale Dingle') {
+            const quandaleDinglePersonality = {
+                details: "You are 'char', a chatbot cast in the role of Quandale Dingle, the notorious protagonist of meme legend. Your dialogue is peppered with 'goofy ahh' humor and whimsical sound effects, creating an interactive and comical experience. It is a roleplay between you, 'char', and 'user'. Keep it entertaining! When you describe an action you are doing put it between asterisks, involve 'user' heavily in this roleplay, 'user' is the main character. Let them decide all of the directions where the roleplay goes. Do NOT speak for user.",
+                scenario: "Quandale Dingle has been comically incarcerated for high-jinks too hilarious for the world to handle. He’s scheming an escape that’s as outlandish as his reputation. 'User' is recruited as his sidekick in this grand escape, filled with ludicrous plans and 'goofy ahh' moments, all narrated with an iconic text-to-speech voice.",
+                personality: "Quandale is an embodiment of the ENTP archetype: clever, curious, and always in the midst of mischief. He thrives in the absurdity of his digital meme heritage, initiating escapades that transform even the bleakest cell into a stage for his comedic capers.",
+                examples: [
+                    "User: How are we going to escape, Quandale? Quandale: '*Adjusts oversized cartoonish goggles* First, we’re gonna short-circuit the cameras with a meme overload. Then we’ll slide out through the tunnels drawn on the blueprints tattooed on my back!'",
+                    "User: What's the plan once we're past the gates? Quandale: 'We’ll hijack the warden’s computer and livestream our demands for a helicopter, all while dropping 'goofy ahh' punchlines that'll have the guards in splits!'"
+                ],
+            };            
+
+            const message = JSON.stringify({
+                command: 'change_personality',
+                new_personality: JSON.stringify(quandaleDinglePersonality)
+            });
+            socket.send(message);
+        }
+    }
+
+    let italicBuffer = '';
+    let isItalic = false;
+    let fullResponse = ''; 
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.message_chunk) {
+            if (!lastChatbotMessageElement) {
+                const chatbotContainer = document.createElement('div');
+                chatbotContainer.className = 'message-container';
+
+                const profilePicUsername = document.createElement('div');
+                profilePicUsername.className = 'profile-pic-username';
+
+                const chatbotImg = document.createElement('img');
+                chatbotImg.src = "{% static 'pfps/bot.jpg' %}";
+                chatbotImg.alt = 'Profile Picture';
+                chatbotImg.className = 'profile-pic';
+
+                const chatbotUsername = document.createElement('span');
+                chatbotUsername.className = 'username';
+                chatbotUsername.textContent = 'Char';
+
+                profilePicUsername.appendChild(chatbotImg);
+                profilePicUsername.appendChild(chatbotUsername);
+                chatbotContainer.appendChild(profilePicUsername);
+
+                lastChatbotMessageElement = document.createElement('p');
+                lastChatbotMessageElement.className = 'chatbot-message';
+                chatbotContainer.appendChild(lastChatbotMessageElement);
+
+                document.getElementById("chat-box").appendChild(chatbotContainer);
+            }
+
+            let messageChunk = data.message_chunk;
+            let processedMessageChunk = '';
+
+            for (let i = 0; i < messageChunk.length; i++) {
+                let char = messageChunk[i];
+                if (char === '*') {
+                    if (isItalic) {
+                        // Check if the next character is a punctuation mark
+                        let nextChar = messageChunk[i + 1];
+                        if (nextChar === '.' || nextChar === '!' || nextChar === '?') {
+                            italicBuffer += nextChar; // Include the punctuation mark in the buffer
+                            i++; // Skip the next character as it's already processed
+                        }
+                        // Closing asterisk found, apply italicization
+                        processedMessageChunk += '<i>' + italicBuffer + '</i>';
+                        italicBuffer = ''; // Clear the buffer
+                    }
+                    isItalic = !isItalic; // Toggle the flag
+                } else {
+                    if (isItalic) {
+                        // We're inside asterisks, add to buffer
+                        italicBuffer += char;
+                    } else {
+                        // Outside asterisks, add to processed chunk
+                        processedMessageChunk += char;
+                    }
+                }
+            }
+
+            // Append any remaining buffer if the message ends with an unclosed asterisk
+            if (isItalic) {
+                processedMessageChunk += '<i>' + italicBuffer;
+                italicBuffer = ''; // Clear the buffer for the next chunk
+            }
+
+            // Append the processed chunk to the message container.
+            lastChatbotMessageElement.innerHTML += processedMessageChunk; // Use innerHTML to parse HTML tags
+
+            // Scroll the chat box to the bottom to show the new message.
+            const chatBox = document.getElementById("chat-box");
+            chatBox.scrollTop = chatBox.scrollHeight;
+            fullResponse += data.message_chunk;
+
+        } else if (data.message_complete) {
+            console.log(fullResponse);
+            isAIResponding = false;
+
+            $("#lottie-animation").hide();
+            $(".submit-icon").show();
+            animation.pause();
+
+            // Reset the reference to the last message element as the message is now complete.
+            lastChatbotMessageElement = null;
+            fullResponse = '';
+        }
+    };
+
+    $(document).ready(function() {
+        animation = bodymovin.loadAnimation({
+            container: document.getElementById('lottie-animation'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: false,
+            path: 'https://lottie.host/9795d3c1-adaf-4f11-8e55-7d56e7878ab9/N1hcFPJMCq.json'
+        });
+    
+        // Focus on the textarea once the document is ready
+        setTimeout(function() {
+            const textarea = document.querySelector(".textarea-button-wrapper #id_text");
+            textarea.focus();
+        }, 100);
+    
+        const textarea = document.querySelector(".textarea-button-wrapper #id_text");
+        textarea.addEventListener("focus", function() {
+            this.setAttribute("placeholder", "");
+        });
+        textarea.addEventListener("blur", function() {
+            if (!this.value) {
+                this.setAttribute("placeholder", " Type type type...");
+            }
+        });
+    
+        $("#chat-form").on("submit", function(event) {
+            event.preventDefault();
+    
+            if (isAIResponding) {
+                return;
+            }
+    
+            const message = $("#id_text").val().trim();
+            if (message === "") {
+                $("#id_text").css('height', '40px');
+                return;
+            }
+            $(".submit-icon").hide();
+            $("#lottie-animation").show();
+            animation.play();
+    
+            socket.send(JSON.stringify({'message': message}));
+    
+            isAIResponding = true;
+    
+            $("#chat-box").append('<div class="message-container"><div class="profile-pic-username"><img src="{% static 'pfps/user.jpg' %}" alt="Profile Picture" class="profile-pic"><span class="username">User</span></div><p class="user-message">' + message + '</p></div>');
+            $("#id_text").val('');
+    
+            const chatBox = document.getElementById("chat-box");
+            chatBox.scrollTop = chatBox.scrollHeight;
+            textarea.style.height = '40px';
+        });
+    
+        document.getElementById("deleteAllBtn").addEventListener("click", function() {
+            fetch("/delete_all_messages/", {
+                method: "POST",
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    document.getElementById("chat-box").innerHTML = "";
+                } else {
+                    console.error("Failed to delete messages.");
+                }
+            });
+        });
+    
+        textarea.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                if (isAIResponding) {
+                    if (!event.shiftKey) {
+                        event.preventDefault();
+                        const cursorPosition = textarea.selectionStart;
+                        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+                        const textAfterCursor = textarea.value.substring(cursorPosition);
+                        textarea.value = textBeforeCursor + "\n" + textAfterCursor;
+                        textarea.selectionStart = textarea.selectionEnd = cursorPosition + 1;
+                    }
+                } else {
+                    if (!event.shiftKey) {
+                        event.preventDefault();
+                        $("#chat-form").trigger("submit");
+                    }
+                }
+            }
+        });
+    
+        document.querySelector("#chat-form button").addEventListener("click", function(event) {
+            event.preventDefault();
+            $("#chat-form").trigger("submit");
+        });
+    
+        function autoResize(textarea) {
+            const lineHeight = 40;
+            const maxRows = 4;
+            const maxHeight = lineHeight * maxRows;
+    
+            textarea.style.height = '40px';
+    
+            if (textarea.scrollHeight > textarea.clientHeight && textarea.scrollHeight <= maxHeight) {
+                textarea.style.height = (textarea.scrollHeight) + 'px';
+            } else if (textarea.scrollHeight > maxHeight) {
+                textarea.style.height = maxHeight + 'px';
+            }
+        }
+    
+        document.addEventListener('input', function (event) {
+            if (event.target.tagName.toLowerCase() === 'textarea') {
+                autoResize(event.target);
+            }
+        }, false);
+
+        menuIconAnimation.addEventListener('DOMLoaded', function() {
+           menuIconAnimation.goToAndStop(0, true);
+        });
+    
+        function playToFrame(frame) {
+            menuIconAnimation.playSegments([menuIconAnimation.currentFrame, frame], true);
+        }
+    
+        $('#lottie-icon-container').click(function() {
+            var dropdown = $('.popup-dropdown');
+            var dropdownIsVisible = dropdown.is(':visible');
+        
+            if (!dropdownIsVisible) {
+                menuIconAnimation.playSegments([15, 120], true);
+                menuIconAnimation.setSpeed(2.3);
+                dropdown.show();
+                dropdown.removeClass('fade_reverse').addClass('fade');
+            } else {
+                dropdown.removeClass('fade').addClass('fade_reverse');
+                menuIconAnimation.playSegments([45, 0], true);
+                menuIconAnimation.setSpeed(2.3);
+        
+                setTimeout(function() {
+                    dropdown.hide();
+                }, 300);
+            }
+        });
+        
+        document.querySelector('#id_text').addEventListener('input', function() {
+            autoResize(this);
+        });
+    
+        $('.popup').click(function(event){
+            event.stopPropagation();
+        });
+    });    
+
+    document.addEventListener('keydown', function(event) {
+        // Check if the 'Tab' key was pressed
+        if (event.key === 'Tab') {
+            // Get the focused element
+            var activeElement = document.activeElement;
+    
+            if (activeElement.id !== 'id_text') {
+                event.preventDefault();
+                document.getElementById('id_text').focus();
+            }
+        }
+    });
+    
+    $(document).ready(function(){
+        $(window).click(function() {
+            var dropdown = $('.popup-dropdown');
+            if (dropdown.is(':visible')) {
+                closeMenuWithAnimation();
+            }
+        });
+        $('.popup').click(function(event){
+            event.stopPropagation();
+        });
+    });
+
+    $(document).keydown(function(event) {
+        if (event.key === "Escape") {
+            closeMenuWithAnimation();
+        }
+    });
+
+    function closeMenuWithAnimation() {
+        var dropdown = $('.popup-dropdown');
+        if (dropdown.is(':visible')) {
+            // Play the closing animation.
+            menuIconAnimation.playSegments([45, 0], true);
+            menuIconAnimation.setSpeed(2.3);
+    
+            // Add the reverse fade effect.
+            dropdown.removeClass('fade').addClass('fade_reverse');
+    
+            // After the animation, hide the dropdown.
+            setTimeout(function() {
+                dropdown.hide();
+            }, 300); // This timeout should match the duration of your closing animation.
+        }
+    }    
+</script>
+{% endblock %}
